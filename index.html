@@ -60,7 +60,7 @@
         }
         sock.onmessage = function(e) {
             <!-- console.log("websocket message received: " + e.data); -->
-            //document.getElementById('remoteSDP').value = e.data
+            document.getElementById('remoteSDP').value = e.data
             <!-- console.log("startSession"); -->
             window.startSession()
         }
@@ -96,7 +96,7 @@
         pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
         pc.onicecandidate = event => {
             if (event.candidate === null) {
-                //document.getElementById('localSDP').value = pc.localDescription.sdp;
+                document.getElementById('localSDP').value = pc.localDescription.sdp;
                 sock.send(pc.localDescription.sdp);
                 <!-- console.log("send sdp to server:==============\n" + pc.localDescription.sdp); -->
             }
