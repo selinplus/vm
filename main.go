@@ -41,6 +41,11 @@ func main() {
 	port := flag.String("p", "8443", "https port")
 	flag.Parse()
 
+	js := http.FileServer(http.Dir("js"))
+	css := http.FileServer(http.Dir("css"))
+	http.Handle("/js/", http.StripPrefix("/js/",js))
+	http.Handle("/css/", http.StripPrefix("/css/",css))
+
 	http.Handle("/metrics", promhttp.Handler())
 
 	// Websocket handle func
@@ -51,5 +56,6 @@ func main() {
 
 	// Support https, so we can test by lan
 	fmt.Println("Web listening :" + *port)
-	panic(http.ListenAndServeTLS(":"+*port, "/etc/letsencrypt/live/ytsw.info/fullchain.pem", "/etc/letsencrypt/live/ytsw.info/privkey.pem", nil))
+	//panic(http.ListenAndServeTLS(":"+*port, "/etc/letsencrypt/live/ytsw.info/fullchain.pem", "/etc/letsencrypt/live/ytsw.info/privkey.pem", nil))
+	panic(http.ListenAndServeTLS(":"+*port, "cert.pem", "key.pem", nil))
 }
