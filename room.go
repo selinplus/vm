@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -17,7 +18,9 @@ import (
 var peerConnectionConfig = webrtc.Configuration{
 	ICEServers: []webrtc.ICEServer{
 		{
-			URLs: []string{"stun:stun.l.google.com:19302"},
+			URLs: []string{"stun:129.211.114.37:3478"},
+			Username:"kurento",
+			Credential:"kurento",
 		},
 	},
 	SDPSemantics: webrtc.SDPSemanticsUnifiedPlanWithFallback,
@@ -59,7 +62,7 @@ func room(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		checkError(c.Close())
 	}()
-
+	fmt.Println("websocket conn cominig...")
 	// Read sdp from websocket
 	mt, msg, err := c.ReadMessage()
 	checkError(err)
