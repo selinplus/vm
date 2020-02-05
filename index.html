@@ -11,16 +11,29 @@
             overflow:auto;
             word-break:break-all;
         }
+        #con1{
+            text-align: center; /*让div内部文字居中*/
+            background-color: #fff;
+            border-radius: 20px;
+            margin: auto;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
     </style>
 </head>
 
 <body>
-<video id="video1" width="320" height="240" autoplay muted controls></video> <br />
-<input id="msginput" type="text" style="width: 320px;height: 24px;" placeholder="typing here..." onkeydown="sendMessage(this)"><br />
-
-<button class="sessbtn" onclick="window.createSession(true)">Publish</button>
-<button class="sessbtn" onclick="window.createSession(false)">Subscribe</button>
-
+<div id="con1">
+    <h3>桌面会议</h3>
+<video id="video1" width="640" height="480" autoplay muted controls></video> <br />
+<input id="msginput" type="text" style="width: 640px;height: 48px;" placeholder="发送消息..." onkeydown="sendMessage(this)"><br />
+<br/>
+<button class="sessbtn" onclick="window.createSession(true)">主持会议</button>
+<button class="sessbtn" onclick="window.createSession(false)">参加会议</button>
+</div>
 <div id="signalingContainer" style="display: none">
     Client SDP<textarea class="comments" id="localSDP" readonly="true" rows=10   cols=30   onpropertychange= "this.style.posHeight=this.scrollHeight "></textarea>
     Server SDP<textarea class="comments" id="remoteSDP" readonly="true" rows=10   cols=30   onpropertychange= "this.style.posHeight=this.scrollHeight "></textarea>
@@ -42,12 +55,12 @@
             <!-- console.log("websocket connected to " + wsuri); -->
         }
         sock.onclose = function(e) {
-        <!-- sock = new WebSocket('wss://' + location.host + '/ws'); -->
+
             <!-- console.log("websocket connection closed (" + e.code + ")"); -->
         }
         sock.onmessage = function(e) {
             <!-- console.log("websocket message received: " + e.data); -->
-            document.getElementById('remoteSDP').value = e.data
+            //document.getElementById('remoteSDP').value = e.data
             <!-- console.log("startSession"); -->
             window.startSession()
         }
@@ -81,8 +94,7 @@
         pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
         pc.onicecandidate = event => {
             if (event.candidate === null) {
-                document.getElementById('localSDP').value = pc.localDescription.sdp;
-                <!-- document.getElementById('localSDP').value = pc.localDescription.sdp; -->
+                //document.getElementById('localSDP').value = pc.localDescription.sdp;
                 sock.send(pc.localDescription.sdp);
                 <!-- console.log("send sdp to server:==============\n" + pc.localDescription.sdp); -->
             }
@@ -137,7 +149,7 @@
             btns[i].style = 'display: none'
         }
 
-        document.getElementById('signalingContainer').style = 'display: block'
+        //document.getElementById('signalingContainer').style = 'display: block'
     }
 </script>
 

@@ -7,7 +7,7 @@ import (
 
 func web(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		t, _ := template.ParseFiles("sfu.html")
+		t, _ := template.ParseFiles("index.html")
 		checkError(t.Execute(w, nil))
 	}
 }
