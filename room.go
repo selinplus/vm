@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -62,7 +61,6 @@ func room(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		checkError(c.Close())
 	}()
-	fmt.Println("websocket conn cominig...")
 	// Read sdp from websocket
 	mt, msg, err := c.ReadMessage()
 	checkError(err)
