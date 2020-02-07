@@ -138,7 +138,7 @@ func room(w http.ResponseWriter, r *http.Request) {
 				SDP:  string(msg),
 				Type: webrtc.SDPTypeOffer,
 			}))
-
+		_, err := pubReceiver.CreateDataChannel("data",nil)
 		// Create answer
 		answer, err := pubReceiver.CreateAnswer(nil)
 		checkError(err)
