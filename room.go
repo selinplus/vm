@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,19 @@ import (
 	"github.com/pion/webrtc/v2"
 )
 
+type WsMsg struct {
+	Tp string `json:"tp"`
+	Val string `json:"val"`
+}
+
+type Biz struct {
+	Flag int `json:"flag"`
+	UserName string `json:"user_name"`
+	UserAccount string `json:"user_account"`
+	DeptId string `json:"dept_id"`
+	DeptName string `json:"dept_name"`
+	ParentDept string `json:"parent_dept"`
+}
 // Peer config
 var peerConnectionConfig = webrtc.Configuration{
 	ICEServers: []webrtc.ICEServer{
@@ -213,5 +227,25 @@ func room(w http.ResponseWriter, r *http.Request) {
 
 		// Send server sdp to subscriber
 		checkError(c.WriteMessage(mt, []byte(answer.SDP)))
+	}
+}
+
+
+func publisher(w http.ResponseWriter, r *http.Request){
+	// Websocket client
+	c, err := upgrader.Upgrade(w, r, nil)
+	checkError(err)
+	defer func() {
+		checkError(c.Close())
+	}()
+	// Read sdp from websocket
+	_, msg, err := c.ReadMessage()
+	checkError(err)
+	var wsMsg = WsMsg{}
+	checkError(json.Unmarshal(msg,&wsMsg))
+	if wsMsg.Tp == "msg"{
+
+	}else{
+
 	}
 }
