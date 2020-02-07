@@ -107,8 +107,11 @@
                     pc.createOffer()
                         .then(d => pc.setLocalDescription(d))
                         .catch(log)
-                    dataChannel = pc.createDataChannel('data')
+                    //dataChannel = pc.createDataChannel('data')
                 }).catch(log)
+            pc.ondatachannel = e =>{
+                dataChannel = e.channel
+            }
             <!-- console.log("Publisher createOffer") -->
         } else {
             <!-- console.log("Subcriber createOffer") -->
