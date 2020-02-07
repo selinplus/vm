@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"sync"
 
@@ -139,6 +140,9 @@ func room(w http.ResponseWriter, r *http.Request) {
 				Type: webrtc.SDPTypeOffer,
 			}))
 		_, err := pubReceiver.CreateDataChannel("data",nil)
+		if err != nil {
+			log.Printf("data channel err is %v", err)
+		}
 		// Create answer
 		answer, err := pubReceiver.CreateAnswer(nil)
 		checkError(err)
