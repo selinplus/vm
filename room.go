@@ -1,8 +1,8 @@
 package main
 
 import (
+	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 
@@ -139,10 +139,10 @@ func room(w http.ResponseWriter, r *http.Request) {
 				SDP:  string(msg),
 				Type: webrtc.SDPTypeOffer,
 			}))
-		_, err := pubReceiver.CreateDataChannel("data",nil)
-		if err != nil {
-			log.Printf("data channel err is %v", err)
-		}
+		//_, err := pubReceiver.CreateDataChannel("data",nil)
+		//if err != nil {
+		//	log.Printf("data channel err is %v", err)
+		//}
 		// Create answer
 		answer, err := pubReceiver.CreateAnswer(nil)
 		checkError(err)
@@ -155,6 +155,7 @@ func room(w http.ResponseWriter, r *http.Request) {
 
 		// Register incoming channel
 		pubReceiver.OnDataChannel(func(d *webrtc.DataChannel) {
+			fmt.Println("data channel coming...")
 			d.OnMessage(func(msg webrtc.DataChannelMessage) {
 				// Broadcast the data to subSenders
 				broadcastHub.broadcastChannel <- msg.Data
