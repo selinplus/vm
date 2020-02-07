@@ -107,14 +107,14 @@
                     pc.createOffer()
                         .then(d => pc.setLocalDescription(d))
                         .catch(log)
-                    dataChannel = pc.createDataChannel('data')
+                    dataChannel = pc.createDataChannel('data-send')
                 }).catch(log)
 
             <!-- console.log("Publisher createOffer") -->
         } else {
             <!-- console.log("Subcriber createOffer") -->
             document.getElementById('msginput').style = 'display: none'
-            dataChannel = pc.createDataChannel('data')
+            dataChannel = pc.createDataChannel('data-receive')
             dataChannel.onmessage = e => log(`receive data from '${dataChannel.label}' payload '${e.data}'`)
             pc.addTransceiver('audio', {'direction': 'recvonly'})
             pc.addTransceiver('video', {'direction': 'recvonly'})
