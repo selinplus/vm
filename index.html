@@ -104,10 +104,11 @@
             navigator.mediaDevices.getUserMedia({ video: true, audio: true})
                 .then(stream => {
                     pc.addStream(document.getElementById('video1').srcObject = stream)
+                    dataChannel = pc.createDataChannel('data-send')
                     pc.createOffer()
                         .then(d => pc.setLocalDescription(d))
                         .catch(log)
-                    dataChannel = pc.createDataChannel('data-send')
+
                 }).catch(log)
 
             <!-- console.log("Publisher createOffer") -->
