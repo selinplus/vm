@@ -76,6 +76,7 @@ func room(w http.ResponseWriter, r *http.Request) {
 		_, err = pubReceiver.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio)
 		checkError(err)
 
+		//Create DataChannel
 		_, err = pubReceiver.AddTransceiverFromKind(webrtc.RTPCodecTypeVideo)
 		checkError(err)
 
@@ -133,6 +134,11 @@ func room(w http.ResponseWriter, r *http.Request) {
 			}
 		})
 
+		_, err = pubReceiver.CreateDataChannel("data",nil)
+		if err != nil {
+			fmt.Printf("data channel err is %v", err)
+		}
+
 		// Set the remote SessionDescription
 		checkError(pubReceiver.SetRemoteDescription(
 			webrtc.SessionDescription{
@@ -149,10 +155,8 @@ func room(w http.ResponseWriter, r *http.Request) {
 
 		// Send server sdp to publisher
 		checkError(c.WriteMessage(mt, []byte(answer.SDP)))
-		_, err = pubReceiver.CreateDataChannel("data",nil)
-		if err != nil {
-			fmt.Printf("data channel err is %v", err)
-		}
+
+
 		// Register incoming channel
 		pubReceiver.OnDataChannel(func(d *webrtc.DataChannel) {
 			fmt.Println("data channel coming...")
