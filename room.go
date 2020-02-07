@@ -134,10 +134,6 @@ func room(w http.ResponseWriter, r *http.Request) {
 			}
 		})
 
-		_, err = pubReceiver.CreateDataChannel("data",nil)
-		if err != nil {
-			fmt.Printf("data channel err is %v", err)
-		}
 
 		// Set the remote SessionDescription
 		checkError(pubReceiver.SetRemoteDescription(
