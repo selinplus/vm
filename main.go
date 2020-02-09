@@ -60,6 +60,6 @@ func main() {
 
 	// Support https, so we can test by lan
 	fmt.Println("Web listening :" + *port)
-	//panic(http.ListenAndServeTLS(":"+*port, "/etc/letsencrypt/live/ytsw.info/fullchain.pem", "/etc/letsencrypt/live/ytsw.info/privkey.pem", nil))
-	panic(http.ListenAndServeTLS(":"+*port, "cert.pem", "key.pem", nil))
+	panic(http.ListenAndServeTLS(":"+*port, "/etc/letsencrypt/live/ytsw.info/fullchain.pem", "/etc/letsencrypt/live/ytsw.info/privkey.pem", nil))
+	//panic(http.ListenAndServeTLS(":"+*port, "cert.pem", "key.pem", nil))
 }
