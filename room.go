@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/pion/rtcp"
 	"io"
 	"log"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v2"
 )
 
@@ -255,6 +255,10 @@ func publisher(w http.ResponseWriter, r *http.Request) {
 	//defer func() {
 	//	checkError(c.Close())
 	//}()
+	go pubdeal(c)
+
+}
+func pubdeal(c *websocket.Conn){
 	// Read sdp from websocket
 	mt, msg, err := c.ReadMessage()
 	checkError(err)
@@ -368,7 +372,6 @@ func publisher(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 }
-
 func subcriber(w http.ResponseWriter, r *http.Request) {
 	// Websocket client
 	c, err := upgrader.Upgrade(w, r, nil)
@@ -377,81 +380,83 @@ func subcriber(w http.ResponseWriter, r *http.Request) {
 	//	checkError(c.Close())
 	//}()
 	// Read sdp from websocket
-	mt, msg, err := c.ReadMessage()
-	checkError(err)
-	var wsMsg = WsMsg{}
-	checkError(json.Unmarshal(msg, &wsMsg))
-	if wsMsg.Tp == "msg" {
-		var meet = &Meeting{}
-		checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
-		u := &SysUser{UserAccount:meet.con.UserAccount,Username:meet.con.Username,DepID:meet.con.DepID}
-		hubLock.Lock()
-		websocketHub[c] = wsMsg.Id
-		if m,ok := meetingHub[wsMsg.Id];ok{
-			m.p = append(m.p, u)
-		}
-		hubLock.Unlock()
-		//broadcast this meet online
-		for conn ,meet := range websocketHub{
-			m := WsMsg{Tp:"online",Val: strconv.Itoa(len(meetingHub[wsMsg.Id].p)),Id:wsMsg.Id}
-			ms, err := json.Marshal(m)
+	for {
+		mt, msg, err := c.ReadMessage()
+		checkError(err)
+		var wsMsg= WsMsg{}
+		checkError(json.Unmarshal(msg, &wsMsg))
+		if wsMsg.Tp == "msg" {
+			var meet= &Meeting{}
+			checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
+			u := &SysUser{UserAccount: meet.con.UserAccount, Username: meet.con.Username, DepID: meet.con.DepID}
+			hubLock.Lock()
+			websocketHub[c] = wsMsg.Id
+			if m, ok := meetingHub[wsMsg.Id]; ok {
+				m.p = append(m.p, u)
+			}
+			hubLock.Unlock()
+			//broadcast this meet online
+			for conn, meet := range websocketHub {
+				m := WsMsg{Tp: "online", Val: strconv.Itoa(len(meetingHub[wsMsg.Id].p)), Id: wsMsg.Id}
+				ms, err := json.Marshal(m)
+				checkError(err)
+				if meet == wsMsg.Id {
+					checkError(conn.WriteMessage(mt, ms))
+				}
+			}
+		} else {
+			//get the meeting broadcastHub
+			broadcastHub := broadcastHubs[wsMsg.Id]
+			// Create a new PeerConnection
+			subSender, err := api.NewPeerConnection(peerConnectionConfig)
 			checkError(err)
-			if meet == wsMsg.Id{
-				checkError(conn.WriteMessage(mt, ms))
+
+			// Register data channel creation handling
+			subSender.OnDataChannel(func(d *webrtc.DataChannel) {
+				broadcastHub.addListener(d)
+			})
+
+			// Waiting for publisher track finish
+			for {
+				videoTrackLock.RLock()
+				if videoTrack == nil {
+					videoTrackLock.RUnlock()
+					//if videoTrack == nil, waiting..
+					time.Sleep(100 * time.Millisecond)
+				} else {
+					videoTrackLock.RUnlock()
+					break
+				}
 			}
-		}
-	} else {
-		//get the meeting broadcastHub
-		broadcastHub := broadcastHubs[wsMsg.Id]
-		// Create a new PeerConnection
-		subSender, err := api.NewPeerConnection(peerConnectionConfig)
-		checkError(err)
 
-		// Register data channel creation handling
-		subSender.OnDataChannel(func(d *webrtc.DataChannel) {
-			broadcastHub.addListener(d)
-		})
-
-		// Waiting for publisher track finish
-		for {
+			// Add local video track
 			videoTrackLock.RLock()
-			if videoTrack == nil {
-				videoTrackLock.RUnlock()
-				//if videoTrack == nil, waiting..
-				time.Sleep(100 * time.Millisecond)
-			} else {
-				videoTrackLock.RUnlock()
-				break
-			}
+			_, err = subSender.AddTrack(videoTrack)
+			videoTrackLock.RUnlock()
+			checkError(err)
+
+			// Add local audio track
+			audioTrackLock.RLock()
+			_, err = subSender.AddTrack(audioTrack)
+			audioTrackLock.RUnlock()
+			checkError(err)
+
+			// Set the remote SessionDescription
+			checkError(subSender.SetRemoteDescription(
+				webrtc.SessionDescription{
+					SDP:  string(msg),
+					Type: webrtc.SDPTypeOffer,
+				}))
+
+			// Create answer
+			answer, err := subSender.CreateAnswer(nil)
+			checkError(err)
+
+			// Sets the LocalDescription, and starts our UDP listeners
+			checkError(subSender.SetLocalDescription(answer))
+
+			// Send server sdp to subscriber
+			checkError(c.WriteMessage(mt, []byte(answer.SDP)))
 		}
-
-		// Add local video track
-		videoTrackLock.RLock()
-		_, err = subSender.AddTrack(videoTrack)
-		videoTrackLock.RUnlock()
-		checkError(err)
-
-		// Add local audio track
-		audioTrackLock.RLock()
-		_, err = subSender.AddTrack(audioTrack)
-		audioTrackLock.RUnlock()
-		checkError(err)
-
-		// Set the remote SessionDescription
-		checkError(subSender.SetRemoteDescription(
-			webrtc.SessionDescription{
-				SDP:  string(msg),
-				Type: webrtc.SDPTypeOffer,
-			}))
-
-		// Create answer
-		answer, err := subSender.CreateAnswer(nil)
-		checkError(err)
-
-		// Sets the LocalDescription, and starts our UDP listeners
-		checkError(subSender.SetLocalDescription(answer))
-
-		// Send server sdp to subscriber
-		checkError(c.WriteMessage(mt, []byte(answer.SDP)))
 	}
 }
