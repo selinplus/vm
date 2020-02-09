@@ -349,7 +349,7 @@ func pubdeal(c *websocket.Conn){
 			// Set the remote SessionDescription
 			checkError(pubReceiver.SetRemoteDescription(
 				webrtc.SessionDescription{
-					SDP:  string(msg),
+					SDP:  wsMsg.Val,
 					Type: webrtc.SDPTypeOffer,
 				}))
 
@@ -381,6 +381,10 @@ func subcriber(w http.ResponseWriter, r *http.Request) {
 	//defer func() {
 	//	checkError(c.Close())
 	//}()
+	go subdeal(c)
+}
+
+func subdeal(c *websocket.Conn){
 	// Read sdp from websocket
 	for {
 		mt, msg, err := c.ReadMessage()
@@ -446,7 +450,7 @@ func subcriber(w http.ResponseWriter, r *http.Request) {
 			// Set the remote SessionDescription
 			checkError(subSender.SetRemoteDescription(
 				webrtc.SessionDescription{
-					SDP:  string(msg),
+					SDP:  wsMsg.Val,
 					Type: webrtc.SDPTypeOffer,
 				}))
 
