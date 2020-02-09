@@ -4,15 +4,18 @@ import (
 	"flag"
 	"fmt"
 	"github.com/pion/webrtc/v2"
-	"net/http"
 	"github.com/povilasv/prommod"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"log"
+	"net/http"
+	"os"
 )
 
 func checkError(err error) {
+
 	if err != nil {
-		panic(err)
+		log.Printf("err:-->%v", err)
 	}
 }
 
@@ -20,7 +23,7 @@ func init() {
 
 	// Generate pem file for https
 	//genPem()
-
+	log.SetOutput(os.Stdout)
 	// Create a MediaEngine object to configure the supported codec
 	m = webrtc.MediaEngine{}
 
