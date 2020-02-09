@@ -27,7 +27,7 @@
 <input id="msginput" type="text" style="width: 640px;height: 48px;" placeholder="发送消息..." onkeydown="sendMessage(this)"><br />
 
 <br/>
-<button class="sessbtn" onclick="window.createSession(false)">参加会议</button>
+<button class="sessbtn" onclick="window.createSession(true)">主持会议</button>
 </div>
 <div id="signalingContainer" style="display: none">
     Client SDP<textarea class="comments" id="localSDP" readonly="true" rows=10   cols=30   onpropertychange= "this.style.posHeight=this.scrollHeight "></textarea>
@@ -44,13 +44,13 @@
     }
 
     var sock = null;
-    var wsuri = "wss://" + location.host + "/wssub";
+    var wsuri = "wss://" + location.host + "/wspub";
     var dataChannel = null;
     window.onload = function() {
         sock = new WebSocket(wsuri);
         sock.onopen = function() {
             <!-- console.log("websocket connected to " + wsuri); -->
-            let biz= {flag:1,userName:"22",userAccount:"22",deptId:"22",deptName:"22",meetingName:"22"}
+            let biz= {flag:0,userName:"00",userAccount:"00",deptId:"00",deptName:"00",meetingName:"00"}
             let bizStr = JSON.stringify(biz)
             let msg = {tp:"msg",val:bizStr,id:"1"}
             sock.send(JSON.stringify(msg))
@@ -109,23 +109,19 @@
                 <!-- console.log("send sdp to server:==============\n" + pc.localDescription.sdp); -->
             }
         }
-        <!-- console.log("Subcriber createOffer") -->
-        document.getElementById('msginput').style = 'display: none'
-        dataChannel = pc.createDataChannel('data-receive')
-        dataChannel.onmessage = e => log(`receive data from '${dataChannel.label}' payload '${e.data}'`)
-        pc.addTransceiver('audio', {'direction': 'recvonly'})
-        pc.addTransceiver('video', {'direction': 'recvonly'})
 
-        pc.createOffer()
-            .then(d => pc.setLocalDescription(d))
-            .catch(log)
+        if (isPublisher) {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true})
+                .then(stream => {
+                    pc.addStream(document.getElementById('video1').srcObject = stream)
+                    dataChannel = pc.createDataChannel('data-send')
+                    pc.createOffer()
+                        .then(d => pc.setLocalDescription(d))
+                        .catch(log)
 
-        <!-- console.log("Subcriber ontrack") -->
-        pc.ontrack = function (event) {
-            let el = document.getElementById('video1')
-            el.srcObject = event.streams[0]
-            el.autoplay = true
-            el.controls = true
+                }).catch(log)
+
+            <!-- console.log("Publisher createOffer") -->
         }
         window.startSession = () => {
             let sd = document.getElementById('remoteSDP').value

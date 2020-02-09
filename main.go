@@ -43,19 +43,23 @@ func main() {
 
 	js := http.FileServer(http.Dir("js"))
 	css := http.FileServer(http.Dir("css"))
+	img := http.FileServer(http.Dir("img"))
 	http.Handle("/js/", http.StripPrefix("/js/",js))
 	http.Handle("/css/", http.StripPrefix("/css/",css))
+	http.Handle("/img/", http.StripPrefix("/img/",img))
 
 	http.Handle("/metrics", promhttp.Handler())
 
 	// Websocket handle func
-	http.HandleFunc("/ws", room)
+	http.HandleFunc("/wspub", publisher)
+	http.HandleFunc("/wssub", subcriber)
 
 	// Html handle func
-	http.HandleFunc("/", web)
+	http.HandleFunc("/", subcribe)
+	http.HandleFunc("/pub", publish)
 
 	// Support https, so we can test by lan
 	fmt.Println("Web listening :" + *port)
-	panic(http.ListenAndServeTLS(":"+*port, "/etc/letsencrypt/live/ytsw.info/fullchain.pem", "/etc/letsencrypt/live/ytsw.info/privkey.pem", nil))
-	//panic(http.ListenAndServeTLS(":"+*port, "cert.pem", "key.pem", nil))
+	//panic(http.ListenAndServeTLS(":"+*port, "/etc/letsencrypt/live/ytsw.info/fullchain.pem", "/etc/letsencrypt/live/ytsw.info/privkey.pem", nil))
+	panic(http.ListenAndServeTLS(":"+*port, "cert.pem", "key.pem", nil))
 }
