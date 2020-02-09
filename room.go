@@ -260,116 +260,118 @@ func publisher(w http.ResponseWriter, r *http.Request) {
 }
 func pubdeal(c *websocket.Conn){
 	// Read sdp from websocket
-	mt, msg, err := c.ReadMessage()
-	checkError(err)
-	var wsMsg = WsMsg{}
-	checkError(json.Unmarshal(msg, &wsMsg))
-	log.Printf("coming websocket msg:%s \n", string(msg))
-	if wsMsg.Tp == "msg" {
-		var meet = &Meeting{}
-		checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
-		hubLock.Lock()
-		websocketHub[c] = wsMsg.Id
-		if _, ok := meetingHub[wsMsg.Id];ok{
-			meet.p = nil
-		}
-		u := &SysUser{UserAccount:meet.con.UserAccount,Username:meet.con.Username,DepID:meet.con.DepID}
-		meet.p = append(meet.p, u)
-		meetingHub[wsMsg.Id] = meet
-		broadcastHubs[wsMsg.Id] = newHub()
-		hubLock.Unlock()
-	} else {
-		broadcastHub := broadcastHubs[wsMsg.Id]
-		// Create a new RTCPeerConnection
-		pubReceiver, err = api.NewPeerConnection(peerConnectionConfig)
+	for {
+		mt, msg, err := c.ReadMessage()
 		checkError(err)
-
-		_, err = pubReceiver.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio)
-		checkError(err)
-
-		//Create DataChannel
-		_, err = pubReceiver.AddTransceiverFromKind(webrtc.RTPCodecTypeVideo)
-		checkError(err)
-
-		pubReceiver.OnTrack(func(remoteTrack *webrtc.Track, receiver *webrtc.RTPReceiver) {
-			if remoteTrack.PayloadType() == webrtc.DefaultPayloadTypeVP8 || remoteTrack.PayloadType() == webrtc.DefaultPayloadTypeVP9 || remoteTrack.PayloadType() == webrtc.DefaultPayloadTypeH264 {
-
-				// Create a local video track, all our SFU clients will be fed via this track
-				var err error
-				videoTrackLock.Lock()
-				videoTrack, err = pubReceiver.NewTrack(remoteTrack.PayloadType(), remoteTrack.SSRC(), "video", "pion")
-				videoTrackLock.Unlock()
-				checkError(err)
-
-				// Send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
-				go func() {
-					ticker := time.NewTicker(rtcpPLIInterval)
-					for range ticker.C {
-						checkError(pubReceiver.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: videoTrack.SSRC()}}))
-					}
-				}()
-
-				rtpBuf := make([]byte, 1400)
-				for {
-					i, err := remoteTrack.Read(rtpBuf)
-					checkError(err)
-					videoTrackLock.RLock()
-					_, err = videoTrack.Write(rtpBuf[:i])
-					videoTrackLock.RUnlock()
-
-					if err != io.ErrClosedPipe {
-						checkError(err)
-					}
-				}
-
-			} else {
-
-				// Create a local audio track, all our SFU clients will be fed via this track
-				var err error
-				audioTrackLock.Lock()
-				audioTrack, err = pubReceiver.NewTrack(remoteTrack.PayloadType(), remoteTrack.SSRC(), "audio", "pion")
-				audioTrackLock.Unlock()
-				checkError(err)
-
-				rtpBuf := make([]byte, 1400)
-				for {
-					i, err := remoteTrack.Read(rtpBuf)
-					checkError(err)
-					audioTrackLock.RLock()
-					_, err = audioTrack.Write(rtpBuf[:i])
-					audioTrackLock.RUnlock()
-					if err != io.ErrClosedPipe {
-						checkError(err)
-					}
-				}
+		var wsMsg= WsMsg{}
+		checkError(json.Unmarshal(msg, &wsMsg))
+		log.Printf("coming websocket msg:%s \n", string(msg))
+		if wsMsg.Tp == "msg" {
+			var meet= &Meeting{}
+			checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
+			hubLock.Lock()
+			websocketHub[c] = wsMsg.Id
+			if _, ok := meetingHub[wsMsg.Id]; ok {
+				meet.p = nil
 			}
-		})
+			u := &SysUser{UserAccount: meet.con.UserAccount, Username: meet.con.Username, DepID: meet.con.DepID}
+			meet.p = append(meet.p, u)
+			meetingHub[wsMsg.Id] = meet
+			broadcastHubs[wsMsg.Id] = newHub()
+			hubLock.Unlock()
+		} else {
+			broadcastHub := broadcastHubs[wsMsg.Id]
+			// Create a new RTCPeerConnection
+			pubReceiver, err = api.NewPeerConnection(peerConnectionConfig)
+			checkError(err)
 
-		// Set the remote SessionDescription
-		checkError(pubReceiver.SetRemoteDescription(
-			webrtc.SessionDescription{
-				SDP:  string(msg),
-				Type: webrtc.SDPTypeOffer,
-			}))
+			_, err = pubReceiver.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio)
+			checkError(err)
 
-		// Create answer
-		answer, err := pubReceiver.CreateAnswer(nil)
-		checkError(err)
+			//Create DataChannel
+			_, err = pubReceiver.AddTransceiverFromKind(webrtc.RTPCodecTypeVideo)
+			checkError(err)
 
-		// Sets the LocalDescription, and starts our UDP listeners
-		checkError(pubReceiver.SetLocalDescription(answer))
+			pubReceiver.OnTrack(func(remoteTrack *webrtc.Track, receiver *webrtc.RTPReceiver) {
+				if remoteTrack.PayloadType() == webrtc.DefaultPayloadTypeVP8 || remoteTrack.PayloadType() == webrtc.DefaultPayloadTypeVP9 || remoteTrack.PayloadType() == webrtc.DefaultPayloadTypeH264 {
 
-		// Send server sdp to publisher
-		checkError(c.WriteMessage(mt, []byte(answer.SDP)))
+					// Create a local video track, all our SFU clients will be fed via this track
+					var err error
+					videoTrackLock.Lock()
+					videoTrack, err = pubReceiver.NewTrack(remoteTrack.PayloadType(), remoteTrack.SSRC(), "video", "pion")
+					videoTrackLock.Unlock()
+					checkError(err)
 
-		// Register incoming channel
-		pubReceiver.OnDataChannel(func(d *webrtc.DataChannel) {
-			fmt.Println("data channel coming...")
-			d.OnMessage(func(msg webrtc.DataChannelMessage) {
-				// Broadcast the data to subSenders
-				broadcastHub.broadcastChannel <- msg.Data
+					// Send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
+					go func() {
+						ticker := time.NewTicker(rtcpPLIInterval)
+						for range ticker.C {
+							checkError(pubReceiver.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: videoTrack.SSRC()}}))
+						}
+					}()
+
+					rtpBuf := make([]byte, 1400)
+					for {
+						i, err := remoteTrack.Read(rtpBuf)
+						checkError(err)
+						videoTrackLock.RLock()
+						_, err = videoTrack.Write(rtpBuf[:i])
+						videoTrackLock.RUnlock()
+
+						if err != io.ErrClosedPipe {
+							checkError(err)
+						}
+					}
+
+				} else {
+
+					// Create a local audio track, all our SFU clients will be fed via this track
+					var err error
+					audioTrackLock.Lock()
+					audioTrack, err = pubReceiver.NewTrack(remoteTrack.PayloadType(), remoteTrack.SSRC(), "audio", "pion")
+					audioTrackLock.Unlock()
+					checkError(err)
+
+					rtpBuf := make([]byte, 1400)
+					for {
+						i, err := remoteTrack.Read(rtpBuf)
+						checkError(err)
+						audioTrackLock.RLock()
+						_, err = audioTrack.Write(rtpBuf[:i])
+						audioTrackLock.RUnlock()
+						if err != io.ErrClosedPipe {
+							checkError(err)
+						}
+					}
+				}
 			})
-		})
+
+			// Set the remote SessionDescription
+			checkError(pubReceiver.SetRemoteDescription(
+				webrtc.SessionDescription{
+					SDP:  string(msg),
+					Type: webrtc.SDPTypeOffer,
+				}))
+
+			// Create answer
+			answer, err := pubReceiver.CreateAnswer(nil)
+			checkError(err)
+
+			// Sets the LocalDescription, and starts our UDP listeners
+			checkError(pubReceiver.SetLocalDescription(answer))
+
+			// Send server sdp to publisher
+			checkError(c.WriteMessage(mt, []byte(answer.SDP)))
+
+			// Register incoming channel
+			pubReceiver.OnDataChannel(func(d *webrtc.DataChannel) {
+				fmt.Println("data channel coming...")
+				d.OnMessage(func(msg webrtc.DataChannelMessage) {
+					// Broadcast the data to subSenders
+					broadcastHub.broadcastChannel <- msg.Data
+				})
+			})
+		}
 	}
 }
 func subcriber(w http.ResponseWriter, r *http.Request) {
