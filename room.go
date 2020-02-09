@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -69,7 +70,7 @@ var (
 	audioTrack     *webrtc.Track
 	videoTrackLock = sync.RWMutex{}
 	audioTrackLock = sync.RWMutex{}
-
+	hubLock = sync.RWMutex{}
 	// Websocket upgrader
 	upgrader   = websocket.Upgrader{}
 	//meeting information
@@ -261,11 +262,16 @@ func publisher(w http.ResponseWriter, r *http.Request) {
 	if wsMsg.Tp == "msg" {
 		var meet = &Meeting{}
 		checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
+		hubLock.Lock()
+		websocketHub[c] = wsMsg.Id
+		if _, ok := meetingHub[wsMsg.Id];ok{
+			meet.p = nil
+		}
 		u := &SysUser{UserAccount:meet.con.UserAccount,Username:meet.con.Username,DepID:meet.con.DepID}
 		meet.p = append(meet.p, u)
-		websocketHub[c] = wsMsg.Id
 		meetingHub[wsMsg.Id] = meet
 		broadcastHubs[wsMsg.Id] = newHub()
+		hubLock.Unlock()
 	} else {
 		broadcastHub := broadcastHubs[wsMsg.Id]
 		// Create a new RTCPeerConnection
@@ -377,13 +383,15 @@ func subcriber(w http.ResponseWriter, r *http.Request) {
 		var meet = &Meeting{}
 		checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
 		u := &SysUser{UserAccount:meet.con.UserAccount,Username:meet.con.Username,DepID:meet.con.DepID}
+		hubLock.Lock()
 		websocketHub[c] = wsMsg.Id
 		if m,ok := meetingHub[wsMsg.Id];ok{
 			m.p = append(m.p, u)
 		}
+		hubLock.Unlock()
 		//broadcast this meet online
 		for conn ,meet := range websocketHub{
-			m := WsMsg{Tp:"online",Val: string(len(meetingHub[wsMsg.Id].p)),Id:wsMsg.Id}
+			m := WsMsg{Tp:"online",Val: strconv.Itoa(len(meetingHub[wsMsg.Id].p)),Id:wsMsg.Id}
 			ms, err := json.Marshal(m)
 			checkError(err)
 			if meet == wsMsg.Id{
