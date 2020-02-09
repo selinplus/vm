@@ -250,9 +250,9 @@ func publisher(w http.ResponseWriter, r *http.Request) {
 	// Websocket client
 	c, err := upgrader.Upgrade(w, r, nil)
 	checkError(err)
-	defer func() {
-		checkError(c.Close())
-	}()
+	//defer func() {
+	//	checkError(c.Close())
+	//}()
 	// Read sdp from websocket
 	mt, msg, err := c.ReadMessage()
 	checkError(err)
@@ -365,9 +365,9 @@ func subcriber(w http.ResponseWriter, r *http.Request) {
 	// Websocket client
 	c, err := upgrader.Upgrade(w, r, nil)
 	checkError(err)
-	defer func() {
-		checkError(c.Close())
-	}()
+	//defer func() {
+	//	checkError(c.Close())
+	//}()
 	// Read sdp from websocket
 	mt, msg, err := c.ReadMessage()
 	checkError(err)
