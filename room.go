@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -259,6 +260,7 @@ func publisher(w http.ResponseWriter, r *http.Request) {
 	checkError(err)
 	var wsMsg = WsMsg{}
 	checkError(json.Unmarshal(msg, &wsMsg))
+	log.Printf("coming websocket msg:%s \n", string(msg))
 	if wsMsg.Tp == "msg" {
 		var meet = &Meeting{}
 		checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
