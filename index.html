@@ -52,7 +52,7 @@
             <!-- console.log("websocket connected to " + wsuri); -->
             let biz= {flag:1,userName:"22",userAccount:"22",deptId:"22",deptName:"22",meetingName:"22"}
             let bizStr = JSON.stringify(biz)
-            let msg = {tp:"msg",val:bizStr,id:"1"}
+            let msg = {tp:"msg",mess:bizStr,meeting_id:"1"}
             sock.send(JSON.stringify(msg))
         }
         sock.onclose = function(e) {
@@ -108,7 +108,7 @@
         pc.onicecandidate = event => {
             if (event.candidate === null) {
                 document.getElementById('localSDP').value = pc.localDescription.sdp;
-                let msg = {tp:"sdp",val:pc.localDescription.sdp,id:"1"}
+                let msg = {tp:"sdp",mess:pc.localDescription.sdp,meeting_id:"1"}
                 //sock.send(pc.localDescription.sdp);
                 sock.send(JSON.stringify(msg));
                 <!-- console.log("send sdp to server:==============\n" + pc.localDescription.sdp); -->

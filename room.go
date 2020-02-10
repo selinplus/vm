@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/pion/rtcp"
 	"io"
 	"log"
@@ -17,15 +16,15 @@ import (
 
 type WsMsg struct {
 	Tp  string `json:"tp"` //msg,sdp,online
-	Val string `json:"val"`
-	Id string `json:"id"`
+	Mess string `json:"mess"`
+	MeetingId string `json:"meeting_id"`
 }
 
 type SysUser struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
 	UserAccount string `json:"user_account"`
-	DepID       string `json:"dep_id"`
+	DeptID       string `json:"dept_id"`
 	ParentID    string `json:"parent_id"`
 }
 type Conference struct {
@@ -34,15 +33,17 @@ type Conference struct {
 	Bz           string `json:"bz"`   //参会范围:0-全局;1-局域
 	Username     string `json:"username"`
 	UserAccount  string `json:"user_account"`
-	DepID        string `json:"dep_id"`
+	DeptID        string `json:"dept_id"`
 	Flag         int    `json:"flag"` // 0创建，1加入，2桥接
-	CreationTime string `json:"creation_time"`
 }
 type Meeting struct {
 	con *Conference
 	p   []*SysUser
 }
-
+type MeetConn struct {
+	mid string //会议ID
+	pid string //人员账号
+}
 // Peer config
 var peerConnectionConfig = webrtc.Configuration{
 	ICEServers: []webrtc.ICEServer{
@@ -71,15 +72,17 @@ var (
 	audioTrack     *webrtc.Track
 	videoTrackLock = sync.RWMutex{}
 	audioTrackLock = sync.RWMutex{}
-	hubLock = sync.RWMutex{}
+	meetHubLock = sync.RWMutex{}
+	wsHubLock = sync.RWMutex{}
+	bdHubLock = sync.RWMutex{}
 	// Websocket upgrader
 	upgrader   = websocket.Upgrader{}
-	//meeting information
+	//meeting information meet id is key
 	meetingHub = make(map[string]*Meeting)
-	//webrtc broadcast hub according meeting id
+	//webrtc broadcast hub  meeting id is key
 	broadcastHubs = make(map[string]*BroadcastHub)
-	//websocket session hub
-	websocketHub = make(map[*websocket.Conn]string)
+	//websocket session hub websocket conn is key
+	websocketHub = make(map[*websocket.Conn]*MeetConn)
 	// Broadcast channels
 	//broadcastHub = newHub()
 )
@@ -252,35 +255,52 @@ func publisher(w http.ResponseWriter, r *http.Request) {
 	// Websocket client
 	c, err := upgrader.Upgrade(w, r, nil)
 	checkError(err)
-	//defer func() {
-	//	checkError(c.Close())
-	//}()
 	go pubdeal(c)
 
 }
 func pubdeal(c *websocket.Conn){
-	// Read sdp from websocket
+	// Read message from websocket
+
 	for {
 		mt, msg, err := c.ReadMessage()
-		checkError(err)
+		if err != nil {
+			if wh,ok := websocketHub[c];ok {
+				person := wh.pid
+				meetHubLock.Lock()
+				tmpPerson := meetingHub[wh.mid].p[:0]
+				for _, p := range meetingHub[wh.mid].p {
+					if person != p.UserAccount {
+						tmpPerson = append(tmpPerson, p)
+					}
+				}
+				meetingHub[wh.mid].p = tmpPerson
+				meetHubLock.Unlock()
+			}
+			log.Println("websocket break")
+			break
+		}
 		var wsMsg= WsMsg{}
 		checkError(json.Unmarshal(msg, &wsMsg))
 		log.Printf("coming websocket msg:%s \n", string(msg))
-		if wsMsg.Tp == "msg" {
+		if wsMsg.Tp == "meet" {
 			var meet= &Meeting{}
-			checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
-			hubLock.Lock()
-			websocketHub[c] = wsMsg.Id
-			if _, ok := meetingHub[wsMsg.Id]; ok {
+			checkError(json.Unmarshal([]byte(wsMsg.Mess), &meet.con))
+			meetHubLock.Lock()
+			mc := &MeetConn{
+				mid: wsMsg.MeetingId,
+				pid: meet.con.UserAccount,
+			}
+			websocketHub[c] = mc
+			if _, ok := meetingHub[wsMsg.MeetingId]; ok {
 				meet.p = nil
 			}
-			u := &SysUser{UserAccount: meet.con.UserAccount, Username: meet.con.Username, DepID: meet.con.DepID}
+			u := &SysUser{UserAccount: meet.con.UserAccount, Username: meet.con.Username, DeptID: meet.con.DeptID}
 			meet.p = append(meet.p, u)
-			meetingHub[wsMsg.Id] = meet
-			broadcastHubs[wsMsg.Id] = newHub()
-			hubLock.Unlock()
+			meetingHub[wsMsg.MeetingId] = meet
+			broadcastHubs[wsMsg.MeetingId] = newHub()
+			meetHubLock.Unlock()
 		} else {
-			broadcastHub := broadcastHubs[wsMsg.Id]
+			broadcastHub := broadcastHubs[wsMsg.MeetingId]
 			// Create a new RTCPeerConnection
 			pubReceiver, err = api.NewPeerConnection(peerConnectionConfig)
 			checkError(err)
@@ -349,7 +369,7 @@ func pubdeal(c *websocket.Conn){
 			// Set the remote SessionDescription
 			checkError(pubReceiver.SetRemoteDescription(
 				webrtc.SessionDescription{
-					SDP:  wsMsg.Val,
+					SDP:  wsMsg.Mess,
 					Type: webrtc.SDPTypeOffer,
 				}))
 
@@ -365,7 +385,6 @@ func pubdeal(c *websocket.Conn){
 
 			// Register incoming channel
 			pubReceiver.OnDataChannel(func(d *webrtc.DataChannel) {
-				fmt.Println("data channel coming...")
 				d.OnMessage(func(msg webrtc.DataChannelMessage) {
 					// Broadcast the data to subSenders
 					broadcastHub.broadcastChannel <- msg.Data
@@ -378,41 +397,59 @@ func subcriber(w http.ResponseWriter, r *http.Request) {
 	// Websocket client
 	c, err := upgrader.Upgrade(w, r, nil)
 	checkError(err)
-	//defer func() {
-	//	checkError(c.Close())
-	//}()
 	go subdeal(c)
 }
 
 func subdeal(c *websocket.Conn){
-	// Read sdp from websocket
+	// Read message from websocket
 	for {
 		mt, msg, err := c.ReadMessage()
-		checkError(err)
+		if err != nil {
+			if wh,ok := websocketHub[c];ok {
+				person := wh.pid
+				meetHubLock.Lock()
+				tmpPerson := meetingHub[wh.mid].p[:0]
+				for _, p := range meetingHub[wh.mid].p {
+					if person != p.UserAccount {
+						tmpPerson = append(tmpPerson, p)
+					}
+				}
+				meetingHub[wh.mid].p = tmpPerson
+				meetHubLock.Unlock()
+			}
+		}
 		var wsMsg= WsMsg{}
 		checkError(json.Unmarshal(msg, &wsMsg))
-		if wsMsg.Tp == "msg" {
+		if wsMsg.Tp == "meet" {
 			var meet= &Meeting{}
-			checkError(json.Unmarshal([]byte(wsMsg.Val), &meet.con))
-			u := &SysUser{UserAccount: meet.con.UserAccount, Username: meet.con.Username, DepID: meet.con.DepID}
-			hubLock.Lock()
-			websocketHub[c] = wsMsg.Id
-			if m, ok := meetingHub[wsMsg.Id]; ok {
+			checkError(json.Unmarshal([]byte(wsMsg.Mess), &meet.con))
+			u := &SysUser{UserAccount: meet.con.UserAccount, Username: meet.con.Username, DeptID: meet.con.DeptID}
+			meetHubLock.Lock()
+			mc := &MeetConn{
+				mid: wsMsg.MeetingId,
+				pid: meet.con.UserAccount,
+			}
+			websocketHub[c] = mc
+			if m, ok := meetingHub[wsMsg.MeetingId]; ok {
 				m.p = append(m.p, u)
 			}
-			hubLock.Unlock()
+			meetHubLock.Unlock()
 			//broadcast this meet online
 			for conn, meet := range websocketHub {
-				m := WsMsg{Tp: "online", Val: strconv.Itoa(len(meetingHub[wsMsg.Id].p)), Id: wsMsg.Id}
+				m := WsMsg{Tp: "online", Mess: strconv.Itoa(len(meetingHub[wsMsg.MeetingId].p)), MeetingId: wsMsg.MeetingId}
 				ms, err := json.Marshal(m)
 				checkError(err)
-				if meet == wsMsg.Id {
-					checkError(conn.WriteMessage(mt, ms))
+				if meet.mid == wsMsg.MeetingId {
+					if err := conn.WriteMessage(mt, ms); err != nil {
+						wsHubLock.Lock()
+						delete(websocketHub, conn)
+						wsHubLock.Unlock()
+					}
 				}
 			}
 		} else {
 			//get the meeting broadcastHub
-			broadcastHub := broadcastHubs[wsMsg.Id]
+			broadcastHub := broadcastHubs[wsMsg.MeetingId]
 			// Create a new PeerConnection
 			subSender, err := api.NewPeerConnection(peerConnectionConfig)
 			checkError(err)
@@ -450,7 +487,7 @@ func subdeal(c *websocket.Conn){
 			// Set the remote SessionDescription
 			checkError(subSender.SetRemoteDescription(
 				webrtc.SessionDescription{
-					SDP:  wsMsg.Val,
+					SDP:  wsMsg.Mess,
 					Type: webrtc.SDPTypeOffer,
 				}))
 
