@@ -7,5 +7,5 @@ require (
 	github.com/pion/rtcp v1.2.1
 	github.com/pion/webrtc/v2 v2.1.18
 	github.com/povilasv/prommod v0.0.12
-	github.com/prometheus/client_golang v1.4.0
+	github.com/prometheus/client_golang v1.11.1
 )
